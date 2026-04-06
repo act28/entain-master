@@ -169,14 +169,14 @@ Structure your review as follows:
 <Brief overview of what was reviewed and overall impression>
 
 ## 🔴 Critical Issues
-| File | Line | Issue | Severity | Suggestion |
-|------|------|-------|----------|------------|
-| path/to/file.go | 42 | Description | Bug/Security/Performance | How to fix |
+| File | Line | Issue | Severity | Status | Suggestion |
+|------|------|-------|----------|--------|------------|
+| path/to/file.go | 42 | Description | Bug/Security/Performance | ❌ Open | How to fix |
 
 ## 🟡 Major Concerns
-| File | Line | Issue | Category | Suggestion |
-|------|------|-------|----------|------------|
-| path/to/file.go | 42 | Description | Architecture/Style/Maintainability | How to fix |
+| File | Line | Issue | Category | Status | Suggestion |
+|------|------|-------|----------|--------|------------|
+| path/to/file.go | 42 | Description | Architecture/Style/Maintainability | ❌ Open | How to fix |
 
 ## 🟢 Minor Suggestions
 - **File**: `path/to/file.go` - Suggestion
@@ -244,10 +244,10 @@ Document your findings in ./docs/{task_number}-review.md
 
 ```markdown
 ## 🔴 Critical Issues
-| File | Line | Issue | Severity | Suggestion |
-|------|------|-------|----------|------------|
-| `racing/db/races.go` | 67 | SQL query uses string concatenation for filter values | Security | Use parameterized queries with `?` placeholders |
-| `api/main.go` | 32 | `grpc.WithInsecure()` without TLS | Security | Add TLS configuration option for production |
+| File | Line | Issue | Severity | Status | Suggestion |
+|------|------|-------|----------|--------|------------|
+| `racing/db/races.go` | 67 | SQL query uses string concatenation for filter values | Security | ❌ Open | Use parameterized queries with `?` placeholders |
+| `api/main.go` | 32 | `grpc.WithInsecure()` without TLS | Security | ❌ Open | Add TLS configuration option for production |
 ```
 
 ---
