@@ -9,12 +9,14 @@ import (
 func (r *racesRepo) seed() error {
 	statement, err := r.db.Prepare(`CREATE TABLE IF NOT EXISTS races (id INTEGER PRIMARY KEY, meeting_id INTEGER, name TEXT, number INTEGER, visible INTEGER, advertised_start_time DATETIME)`)
 	if err == nil {
+		defer func() { _ = statement.Close() }()
 		_, err = statement.Exec()
 	}
 
 	for i := 1; i <= 100; i++ {
 		statement, err = r.db.Prepare(`INSERT OR IGNORE INTO races(id, meeting_id, name, number, visible, advertised_start_time) VALUES (?,?,?,?,?,?)`)
 		if err == nil {
+			defer func() { _ = statement.Close() }()
 			_, err = statement.Exec(
 				i,
 				faker.Number().Between(1, 10),
