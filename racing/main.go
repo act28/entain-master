@@ -25,7 +25,7 @@ func main() {
 }
 
 func run() error {
-	conn, err := net.Listen("tcp", ":9000")
+	conn, err := net.Listen("tcp", *grpcEndpoint)
 	if err != nil {
 		return err
 	}
