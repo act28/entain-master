@@ -34,6 +34,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	defer func() { _ = racingDB.Close() }()
 
 	racesRepo := db.NewRacesRepo(racingDB)
 	if err := racesRepo.Init(); err != nil {
@@ -54,6 +55,8 @@ func run() error {
 	if err := grpcServer.Serve(conn); err != nil {
 		return err
 	}
+
+	grpcServer.GracefulStop()
 
 	return nil
 }
