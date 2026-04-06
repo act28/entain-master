@@ -133,7 +133,10 @@ Check for:
 - [ ] Test data is explicitly seeded per test
 - [ ] `t.Cleanup()` is used for teardown
 - [ ] `t.Helper()` is used in helper functions
+- [ ] Helper functions should be in `helper.go` - only tests should be in `*_test.go`
+- [ ] `TestMain` used for common setup across test files
 - [ ] Tests cover edge cases (empty results, errors, nil inputs)
+- [ ] Tests use Arrange/Act/Assert pattern
 - [ ] End-to-end tests exercise full pipeline (handler → service → repo)
 
 ### 8. Security Checklist
