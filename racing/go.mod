@@ -4,6 +4,7 @@ go 1.16
 
 require (
 	github.com/golang/protobuf v1.4.3
+	github.com/google/go-cmp v0.5.4
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.3.0
 	github.com/mattn/go-sqlite3 v1.14.6
 	golang.org/x/net v0.0.0-20210226172049-e18ecbb05110
