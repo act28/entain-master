@@ -13,3 +13,5 @@ require (
 	google.golang.org/protobuf v1.25.1-0.20201208041424-160c7477e0e8
 	syreclabs.com/go/faker v1.2.3
 )
+
+replace syreclabs.com/go/faker => github.com/dmgk/faker v1.2.3
