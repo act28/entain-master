@@ -14,6 +14,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	_ "github.com/mattn/go-sqlite3"
+	"google.golang.org/protobuf/proto"
 )
 
 // TestListRaces_Service tests the ListRaces service method with various filters
@@ -191,6 +192,55 @@ func TestListRaces_Service(t *testing.T) {
 					}
 					if race.MeetingId != expected.meetingID {
 						t.Errorf("race %d: expected meeting_id %d, got %d", race.Id, expected.meetingID, race.MeetingId)
+					}
+				}
+			},
+			seedData: true,
+		},
+		{
+			name: "visible filter true",
+			filter: &racingpb.ListRacesRequestFilter{
+				Visible: proto.Bool(true),
+			},
+			expectedCount: 4, // Races 1, 3, 4, 6 are visible
+			validateRaces: func(t *testing.T, races []*racingpb.Race) {
+				for _, race := range races {
+					if !race.Visible {
+						t.Errorf("expected visible race, got race %d with visible=%v", race.Id, race.Visible)
+					}
+				}
+			},
+			seedData: true,
+		},
+		{
+			name: "visible filter false",
+			filter: &racingpb.ListRacesRequestFilter{
+				Visible: proto.Bool(false),
+			},
+			expectedCount: 2, // Races 2, 5 are not visible
+			validateRaces: func(t *testing.T, races []*racingpb.Race) {
+				for _, race := range races {
+					if race.Visible {
+						t.Errorf("expected invisible race, got race %d with visible=%v", race.Id, race.Visible)
+					}
+				}
+			},
+			seedData: true,
+		},
+		{
+			name: "visible filter with meeting ids",
+			filter: &racingpb.ListRacesRequestFilter{
+				MeetingIds: []int64{1},
+				Visible:    proto.Bool(true),
+			},
+			expectedCount: 2, // Races 1, 3 from meeting 1 are visible
+			validateRaces: func(t *testing.T, races []*racingpb.Race) {
+				for _, race := range races {
+					if race.MeetingId != 1 {
+						t.Errorf("expected meeting_id 1, got %d", race.MeetingId)
+					}
+					if !race.Visible {
+						t.Errorf("expected visible race, got race %d with visible=%v", race.Id, race.Visible)
 					}
 				}
 			},
