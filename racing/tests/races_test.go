@@ -246,6 +246,43 @@ func TestListRaces_Service(t *testing.T) {
 			},
 			seedData: true,
 		},
+		{
+			name: "validate open race status",
+			filter: &racingpb.ListRacesRequestFilter{
+				MeetingIds: []int64{2},
+			},
+			expectedCount: 2,
+			validateRaces: func(t *testing.T, races []*racingpb.Race) {
+				for _, race := range races {
+					if race.Status != racingpb.Race_OPEN {
+						t.Errorf("expected status OPEN for future race %d, got %v", race.Id, race.Status)
+					}
+				}
+			},
+			seedData: true,
+		},
+		{
+			name: "validate closed race status",
+			filter: &racingpb.ListRacesRequestFilter{
+				MeetingIds: []int64{1},
+			},
+			expectedCount: 3,
+			validateRaces: func(t *testing.T, races []*racingpb.Race) {
+				for _, race := range races {
+					switch race.Id {
+					case 1, 2: // Past races should be CLOSED
+						if race.Status != racingpb.Race_CLOSED {
+							t.Errorf("expected status CLOSED for past race %d, got %v", race.Id, race.Status)
+						}
+					case 3: // Future race should be OPEN
+						if race.Status != racingpb.Race_OPEN {
+							t.Errorf("expected status OPEN for future race %d, got %v", race.Id, race.Status)
+						}
+					}
+				}
+			},
+			seedData: true,
+		},
 	}
 
 	// Default test data seeded for most test cases

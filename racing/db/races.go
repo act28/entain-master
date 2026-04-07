@@ -137,6 +137,20 @@ func (r *racesRepo) validateSortField(field string) string {
 	return "advertised_start_time"
 }
 
+// computeRaceStatus determines if a race is OPEN or CLOSED based on the
+// advertised start time compared to the current time.
+//
+// A race is:
+// - OPEN if the current time is before the advertised start time
+// - CLOSED if the current time is at or after the advertised start time
+func computeRaceStatus(advertisedStart time.Time) racing.Race_Status {
+	// Ensure consistent timezone handling by using UTC for comparison
+	if time.Now().UTC().Before(advertisedStart.UTC()) {
+		return racing.Race_OPEN
+	}
+	return racing.Race_CLOSED
+}
+
 func (m *racesRepo) scanRaces(
 	rows *sql.Rows,
 ) ([]*racing.Race, error) {
@@ -160,6 +174,9 @@ func (m *racesRepo) scanRaces(
 		}
 
 		race.AdvertisedStartTime = ts
+
+		// Compute status based on advertised_start_time vs current time
+		race.Status = computeRaceStatus(advertisedStart)
 
 		races = append(races, &race)
 	}
