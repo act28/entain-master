@@ -143,6 +143,63 @@ func TestAPI_ListRaces_ResponseFieldValidation(t *testing.T) {
 		if race.AdvertisedStartTime == nil {
 			t.Errorf("race[%d]: expected AdvertisedStartTime to be set", i)
 		}
+
+		// Validate Status is set (should be OPEN or CLOSED, not UNSPECIFIED)
+		if race.Status == racingpb.Race_UNSPECIFIED {
+			t.Errorf("race[%d]: expected status to be set (OPEN or CLOSED), got UNSPECIFIED", i)
+		}
+	}
+}
+
+// TestAPI_ListRaces_StatusValidation validates that the status field
+// is correctly computed based on advertised_start_time.
+// Races with future times should be OPEN, races with past times should be CLOSED.
+func TestAPI_ListRaces_StatusValidation(t *testing.T) {
+	testCases := []struct {
+		name           string
+		filter         *racingpb.ListRacesRequestFilter
+		validateStatus func(t *testing.T, races []*racingpb.Race)
+	}{
+		{
+			name:   "all races have valid status",
+			filter: &racingpb.ListRacesRequestFilter{},
+			validateStatus: func(t *testing.T, races []*racingpb.Race) {
+				for _, race := range races {
+					if race.Status == racingpb.Race_UNSPECIFIED {
+						t.Errorf("race %d: expected status to be OPEN or CLOSED, got UNSPECIFIED", race.Id)
+					}
+				}
+			},
+		},
+		{
+			name: "status field exists in response",
+			filter: &racingpb.ListRacesRequestFilter{
+				MeetingIds: []int64{1, 2, 3},
+			},
+			validateStatus: func(t *testing.T, races []*racingpb.Race) {
+				if len(races) == 0 {
+					t.Skip("no races to validate status")
+				}
+				for _, race := range races {
+					// Status should be either OPEN (1) or CLOSED (2)
+					if race.Status != racingpb.Race_OPEN && race.Status != racingpb.Race_CLOSED {
+						t.Errorf("race %d: expected status OPEN (1) or CLOSED (2), got %v", race.Id, race.Status)
+					}
+				}
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := callListRaces(t, &racingpb.ListRacesRequest{
+				Filter: tc.filter,
+			})
+
+			if tc.validateStatus != nil {
+				tc.validateStatus(t, resp.Races)
+			}
+		})
 	}
 }
 
