@@ -1,15 +1,18 @@
 syntax = "proto3";
 package racing;
 
-option go_package = "/racing";
-
-import "google/protobuf/timestamp.proto";
 import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "/racing";
 
 service Racing {
   // ListRaces returns a list of all races.
   rpc ListRaces(ListRacesRequest) returns (ListRacesResponse) {
-    option (google.api.http) = { post: "/v1/list-races", body: "*" };
+    option (google.api.http) = {
+      post: "/v1/list-races"
+      body: "*"
+    };
   }
 }
 
@@ -28,6 +31,8 @@ message ListRacesResponse {
 // Filter for listing races.
 message ListRacesRequestFilter {
   repeated int64 meeting_ids = 1;
+  // Optional filter for visible races. If not set, returns both visible and invisible races.
+  optional bool visible = 2;
 }
 
 /* Resources */
