@@ -33,6 +33,14 @@ message ListRacesRequestFilter {
   repeated int64 meeting_ids = 1;
   // Optional filter for visible races. If not set, returns both visible and invisible races.
   optional bool visible = 2;
+  // Optional field to specify which field to sort by.
+  // Supported values: "advertised_start_time", "name", "id", "meeting_id", "number"
+  // If not set, defaults to "advertised_start_time".
+  optional string sort_by = 3;
+  // Optional field to specify sort direction.
+  // If true, sorts in descending order (latest first).
+  // If false or not set, sorts in ascending order (earliest first).
+  optional bool descending = 4;
 }
 
 /* Resources */

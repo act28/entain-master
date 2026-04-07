@@ -449,3 +449,321 @@ func TestListRaces_ResponseValidation(t *testing.T) {
 		t.Fatalf("AdvertisedStartTime mismatch (-want +got):\n%s", diff)
 	}
 }
+
+// TestListRaces_Sorting tests the sorting functionality for ListRaces
+func TestListRaces_Sorting(t *testing.T) {
+	// Create test data with specific times for predictable ordering
+	// Mix of past (negative offset), present (zero), and future (positive offset) times
+	baseTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	sortTestRaces := []testRace{
+		{ID: 1, MeetingID: 1, Name: "Zebra Race", Number: 1, Visible: true, AdvertisedStartTime: baseTime.Add(2 * time.Hour)},   // 14:00 (future)
+		{ID: 2, MeetingID: 1, Name: "Apple Race", Number: 2, Visible: false, AdvertisedStartTime: baseTime.Add(-1 * time.Hour)}, // 11:00 (past)
+		{ID: 3, MeetingID: 2, Name: "Mango Race", Number: 1, Visible: true, AdvertisedStartTime: baseTime.Add(3 * time.Hour)},   // 15:00 (future)
+		{ID: 4, MeetingID: 2, Name: "Banana Race", Number: 2, Visible: true, AdvertisedStartTime: baseTime.Add(-2 * time.Hour)}, // 10:00 (past)
+		{ID: 5, MeetingID: 3, Name: "Cherry Race", Number: 1, Visible: true, AdvertisedStartTime: baseTime.Add(0 * time.Hour)},  // 12:00 (present)
+	}
+
+	testCases := []struct {
+		name          string
+		filter        *racingpb.ListRacesRequestFilter
+		expectedOrder []int64 // Expected race IDs in order
+		validateOrder func(t *testing.T, races []*racingpb.Race)
+	}{
+		{
+			name:          "nil filter uses default sort",
+			filter:        nil,                    // Entire filter is nil
+			expectedOrder: []int64{4, 2, 5, 1, 3}, // 10:00, 11:00, 12:00, 14:00, 15:00
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				if len(races) != 5 {
+					t.Fatalf("expected 5 races, got %d", len(races))
+				}
+				// Verify ascending order (earliest first)
+				for i := 1; i < len(races); i++ {
+					prevTime, _ := ptypes.Timestamp(races[i-1].AdvertisedStartTime)
+					currTime, _ := ptypes.Timestamp(races[i].AdvertisedStartTime)
+					if currTime.Before(prevTime) {
+						t.Errorf("races not in ascending order: race %d (time: %v) before race %d (time: %v)",
+							races[i].Id, currTime, races[i-1].Id, prevTime)
+					}
+				}
+			},
+		},
+		{
+			name:          "nil sort_by uses default advertised_start_time ascending",
+			filter:        &racingpb.ListRacesRequestFilter{}, // SortBy is nil (omitted)
+			expectedOrder: []int64{4, 2, 5, 1, 3},             // 10:00, 11:00, 12:00, 14:00, 15:00
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				if len(races) != 5 {
+					t.Fatalf("expected 5 races, got %d", len(races))
+				}
+				// Verify ascending order (earliest first)
+				for i := 1; i < len(races); i++ {
+					prevTime, _ := ptypes.Timestamp(races[i-1].AdvertisedStartTime)
+					currTime, _ := ptypes.Timestamp(races[i].AdvertisedStartTime)
+					if currTime.Before(prevTime) {
+						t.Errorf("races not in ascending order: race %d (time: %v) before race %d (time: %v)",
+							races[i].Id, currTime, races[i-1].Id, prevTime)
+					}
+				}
+			},
+		},
+		{
+			name: "explicit sort by advertised_start_time ascending",
+			filter: &racingpb.ListRacesRequestFilter{
+				SortBy:     proto.String("advertised_start_time"),
+				Descending: proto.Bool(false),
+			},
+			expectedOrder: []int64{4, 2, 5, 1, 3},
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				if len(races) != 5 {
+					t.Fatalf("expected 5 races, got %d", len(races))
+				}
+				expectedIDs := []int64{4, 2, 5, 1, 3}
+				for i, race := range races {
+					if race.Id != expectedIDs[i] {
+						t.Errorf("position %d: expected race %d, got race %d", i, expectedIDs[i], race.Id)
+					}
+				}
+			},
+		},
+		{
+			name: "sort by advertised_start_time descending",
+			filter: &racingpb.ListRacesRequestFilter{
+				SortBy:     proto.String("advertised_start_time"),
+				Descending: proto.Bool(true),
+			},
+			expectedOrder: []int64{3, 1, 5, 2, 4}, // 15:00, 14:00, 12:00, 11:00, 10:00
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				if len(races) != 5 {
+					t.Fatalf("expected 5 races, got %d", len(races))
+				}
+				expectedIDs := []int64{3, 1, 5, 2, 4}
+				for i, race := range races {
+					if race.Id != expectedIDs[i] {
+						t.Errorf("position %d: expected race %d, got race %d", i, expectedIDs[i], race.Id)
+					}
+				}
+			},
+		},
+		{
+			name: "sort by name ascending",
+			filter: &racingpb.ListRacesRequestFilter{
+				SortBy:     proto.String("name"),
+				Descending: proto.Bool(false),
+			},
+			expectedOrder: []int64{2, 4, 5, 3, 1}, // Apple, Banana, Cherry, Mango, Zebra
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				expectedNames := []string{"Apple Race", "Banana Race", "Cherry Race", "Mango Race", "Zebra Race"}
+				for i, race := range races {
+					if race.Name != expectedNames[i] {
+						t.Errorf("position %d: expected name %q, got %q", i, expectedNames[i], race.Name)
+					}
+				}
+			},
+		},
+		{
+			name: "sort by name descending",
+			filter: &racingpb.ListRacesRequestFilter{
+				SortBy:     proto.String("name"),
+				Descending: proto.Bool(true),
+			},
+			expectedOrder: []int64{1, 3, 5, 4, 2}, // Zebra, Mango, Cherry, Banana, Apple
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				expectedNames := []string{"Zebra Race", "Mango Race", "Cherry Race", "Banana Race", "Apple Race"}
+				for i, race := range races {
+					if race.Name != expectedNames[i] {
+						t.Errorf("position %d: expected name %q, got %q", i, expectedNames[i], race.Name)
+					}
+				}
+			},
+		},
+		{
+			name: "sort by id ascending",
+			filter: &racingpb.ListRacesRequestFilter{
+				SortBy:     proto.String("id"),
+				Descending: proto.Bool(false),
+			},
+			expectedOrder: []int64{1, 2, 3, 4, 5},
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				expectedIDs := []int64{1, 2, 3, 4, 5}
+				for i, race := range races {
+					if race.Id != expectedIDs[i] {
+						t.Errorf("position %d: expected race %d, got race %d", i, expectedIDs[i], race.Id)
+					}
+				}
+			},
+		},
+		{
+			name: "sort by id descending",
+			filter: &racingpb.ListRacesRequestFilter{
+				SortBy:     proto.String("id"),
+				Descending: proto.Bool(true),
+			},
+			expectedOrder: []int64{5, 4, 3, 2, 1},
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				expectedIDs := []int64{5, 4, 3, 2, 1}
+				for i, race := range races {
+					if race.Id != expectedIDs[i] {
+						t.Errorf("position %d: expected race %d, got race %d", i, expectedIDs[i], race.Id)
+					}
+				}
+			},
+		},
+		{
+			name: "sort by meeting_id ascending",
+			filter: &racingpb.ListRacesRequestFilter{
+				SortBy:     proto.String("meeting_id"),
+				Descending: proto.Bool(false),
+			},
+			expectedOrder: []int64{1, 2, 3, 4, 5}, // Meeting 1 (races 1,2), Meeting 2 (races 3,4), Meeting 3 (race 5)
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				// All meeting 1 races should come before meeting 2 races, which come before meeting 3
+				lastMeetingID := int64(0)
+				for _, race := range races {
+					if race.MeetingId < lastMeetingID {
+						t.Errorf("meeting_id out of order: got %d after %d", race.MeetingId, lastMeetingID)
+					}
+					lastMeetingID = race.MeetingId
+				}
+			},
+		},
+		{
+			name: "sort by number ascending",
+			filter: &racingpb.ListRacesRequestFilter{
+				SortBy:     proto.String("number"),
+				Descending: proto.Bool(false),
+			},
+			expectedOrder: []int64{1, 3, 5, 2, 4}, // Number 1 (races 1,3,5), Number 2 (races 2,4)
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				// All number 1 races should come before number 2 races
+				foundNumber2 := false
+				for _, race := range races {
+					if race.Number == 2 {
+						foundNumber2 = true
+					}
+					if race.Number == 1 && foundNumber2 {
+						t.Error("number 1 race found after number 2 race")
+					}
+				}
+			},
+		},
+		{
+			name: "empty string sort_by uses default advertised_start_time",
+			filter: &racingpb.ListRacesRequestFilter{
+				SortBy:     proto.String(""), // Explicitly set to empty string
+				Descending: proto.Bool(false),
+			},
+			expectedOrder: []int64{4, 2, 5, 1, 3}, // Should fallback to default sort
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				if len(races) != 5 {
+					t.Fatalf("expected 5 races, got %d", len(races))
+				}
+				// Verify sorted by time (default)
+				for i := 1; i < len(races); i++ {
+					prevTime, _ := ptypes.Timestamp(races[i-1].AdvertisedStartTime)
+					currTime, _ := ptypes.Timestamp(races[i].AdvertisedStartTime)
+					if currTime.Before(prevTime) {
+						t.Errorf("empty sort_by did not fallback to default order")
+					}
+				}
+			},
+		},
+		{
+			name: "invalid sort_by falls back to advertised_start_time",
+			filter: &racingpb.ListRacesRequestFilter{
+				SortBy:     proto.String("invalid_field"),
+				Descending: proto.Bool(false),
+			},
+			expectedOrder: []int64{4, 2, 5, 1, 3}, // Should fallback to default sort
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				if len(races) != 5 {
+					t.Fatalf("expected 5 races, got %d", len(races))
+				}
+				// Verify sorted by time (default)
+				for i := 1; i < len(races); i++ {
+					prevTime, _ := ptypes.Timestamp(races[i-1].AdvertisedStartTime)
+					currTime, _ := ptypes.Timestamp(races[i].AdvertisedStartTime)
+					if currTime.Before(prevTime) {
+						t.Errorf("races not in default order: race %d before race %d", races[i].Id, races[i-1].Id)
+					}
+				}
+			},
+		},
+		{
+			name: "combined filter and sort",
+			filter: &racingpb.ListRacesRequestFilter{
+				MeetingIds: []int64{1},
+				SortBy:     proto.String("advertised_start_time"),
+				Descending: proto.Bool(true),
+			},
+			expectedOrder: []int64{1, 2}, // Meeting 1 races: 14:00, 11:00 (descending)
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				if len(races) != 2 {
+					t.Fatalf("expected 2 races, got %d", len(races))
+				}
+				for _, race := range races {
+					if race.MeetingId != 1 {
+						t.Errorf("expected meeting_id 1, got %d", race.MeetingId)
+					}
+				}
+				// Verify descending order
+				firstTime, _ := ptypes.Timestamp(races[0].AdvertisedStartTime)
+				secondTime, _ := ptypes.Timestamp(races[1].AdvertisedStartTime)
+				if !firstTime.After(secondTime) {
+					t.Error("expected descending order")
+				}
+			},
+		},
+		{
+			name: "sort with visible filter",
+			filter: &racingpb.ListRacesRequestFilter{
+				Visible:    proto.Bool(true),
+				SortBy:     proto.String("advertised_start_time"),
+				Descending: proto.Bool(false),
+			},
+			expectedOrder: []int64{5, 1, 3}, // Visible races: 12:00, 14:00, 15:00
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				// Verify all races are visible
+				for _, race := range races {
+					if !race.Visible {
+						t.Errorf("expected only visible races, got race %d with visible=%v",
+							race.Id, race.Visible)
+					}
+				}
+				// Verify ascending order
+				for i := 1; i < len(races); i++ {
+					prevTime, _ := ptypes.Timestamp(races[i-1].AdvertisedStartTime)
+					currTime, _ := ptypes.Timestamp(races[i].AdvertisedStartTime)
+					if currTime.Before(prevTime) {
+						t.Error("visible filtered races not in ascending order")
+					}
+				}
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			db, cleanup := setupTestDB(t)
+			t.Cleanup(cleanup)
+
+			seedTestData(t, db, sortTestRaces)
+
+			repo := racingdb.NewRacesRepo(db)
+			racingService := service.NewRacingService(repo)
+
+			request := &racingpb.ListRacesRequest{
+				Filter: tc.filter,
+			}
+
+			response, err := racingService.ListRaces(context.Background(), request)
+			if err != nil {
+				t.Fatalf("ListRaces failed: %v", err)
+			}
+
+			if tc.validateOrder != nil {
+				tc.validateOrder(t, response.Races)
+			}
+		})
+	}
+}

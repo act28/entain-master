@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -52,7 +53,12 @@ func (r *racesRepo) List(filter *racing.ListRacesRequestFilter) ([]*racing.Race,
 
 	query = getRaceQueries()[racesList]
 
+	// Step 1: Apply WHERE clause (filtering)
 	query, args = r.applyFilter(query, filter)
+
+	// Step 2: Apply ORDER BY (sorting)
+	// Separate from filtering for single responsibility
+	query = r.applySorting(query, filter)
 
 	rows, err := r.db.Query(query, args...)
 	if err != nil {
@@ -92,6 +98,43 @@ func (r *racesRepo) applyFilter(query string, filter *racing.ListRacesRequestFil
 	}
 
 	return query, args
+}
+
+// applySorting adds ORDER BY clause based on filter parameters.
+// Defaults to ordering by advertised_start_time ASC.
+//
+// SECURITY NOTE: This function uses fmt.Sprintf to construct the ORDER BY clause.
+// The sortBy and direction values are safe because:
+// 1. sortBy is validated against a whitelist in validateSortField() - only known column names are allowed
+// 2. direction is strictly controlled to only "ASC" or "DESC" constants
+// This prevents SQL injection while allowing dynamic sorting.
+func (r *racesRepo) applySorting(query string, filter *racing.ListRacesRequestFilter) string {
+	// Determine sort field (default to advertised_start_time)
+	// validateSortField ensures only whitelisted column names are used
+	sortBy := "advertised_start_time"
+	if filter != nil && filter.SortBy != nil && *filter.SortBy != "" {
+		sortBy = r.validateSortField(*filter.SortBy)
+	}
+
+	// Determine sort direction (default ASC, only ASC or DESC allowed)
+	direction := "ASC"
+	if filter != nil && filter.Descending != nil && *filter.Descending {
+		direction = "DESC"
+	}
+
+	// Safe to use fmt.Sprintf because sortBy and direction are controlled values
+	return query + fmt.Sprintf(" ORDER BY %s %s", sortBy, direction)
+}
+
+// validateSortField ensures the sort field is valid to prevent SQL injection.
+// Returns the field name if valid, otherwise returns default "advertised_start_time".
+func (r *racesRepo) validateSortField(field string) string {
+	switch field {
+	case "advertised_start_time", "name", "id", "meeting_id", "number":
+		return field
+	}
+	// Return safe default if invalid field provided
+	return "advertised_start_time"
 }
 
 func (m *racesRepo) scanRaces(

@@ -354,3 +354,240 @@ func TestListRaces_ContextTimeout(t *testing.T) {
 
 	t.Logf("request completed successfully in %v (before timeout)", elapsed)
 }
+
+// TestAPI_ListRaces_Sorting tests sorting functionality at the HTTP API level.
+// These tests verify that sort parameters are correctly passed through the REST API
+// to the gRPC service and that results are properly ordered in the response.
+func TestAPI_ListRaces_Sorting(t *testing.T) {
+	testCases := []struct {
+		name          string
+		filter        *racingpb.ListRacesRequestFilter
+		validateOrder func(t *testing.T, races []*racingpb.Race)
+	}{
+		{
+			name:   "nil filter uses default sort",
+			filter: nil, // Entire filter is nil
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				// Verify ascending order (earliest first)
+				for i := 1; i < len(races); i++ {
+					prevTime := races[i-1].AdvertisedStartTime.AsTime()
+					currTime := races[i].AdvertisedStartTime.AsTime()
+					if currTime.Before(prevTime) {
+						t.Errorf("races not in ascending order: race %d (time: %v) before race %d (time: %v)",
+							races[i].Id, currTime, races[i-1].Id, prevTime)
+					}
+				}
+			},
+		},
+		{
+			name:   "nil sort_by uses default advertised_start_time ascending",
+			filter: &racingpb.ListRacesRequestFilter{}, // SortBy is nil (omitted)
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				// Verify ascending order (earliest first)
+				for i := 1; i < len(races); i++ {
+					prevTime := races[i-1].AdvertisedStartTime.AsTime()
+					currTime := races[i].AdvertisedStartTime.AsTime()
+					if currTime.Before(prevTime) {
+						t.Errorf("races not in ascending order: race %d (time: %v) before race %d (time: %v)",
+							races[i].Id, currTime, races[i-1].Id, prevTime)
+					}
+				}
+			},
+		},
+		{
+			name: "sort by advertised_start_time descending",
+			filter: &racingpb.ListRacesRequestFilter{
+				SortBy:     proto.String("advertised_start_time"),
+				Descending: proto.Bool(true),
+			},
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				// Verify descending order (latest first)
+				for i := 1; i < len(races); i++ {
+					prevTime := races[i-1].AdvertisedStartTime.AsTime()
+					currTime := races[i].AdvertisedStartTime.AsTime()
+					if currTime.After(prevTime) {
+						t.Errorf("races not in descending order: race %d (time: %v) after race %d (time: %v)",
+							races[i].Id, currTime, races[i-1].Id, prevTime)
+					}
+				}
+			},
+		},
+		{
+			name: "sort by name ascending",
+			filter: &racingpb.ListRacesRequestFilter{
+				SortBy:     proto.String("name"),
+				Descending: proto.Bool(false),
+			},
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				// Verify alphabetical order A-Z
+				for i := 1; i < len(races); i++ {
+					if races[i].Name < races[i-1].Name {
+						t.Errorf("names not in ascending order: %q before %q", races[i].Name, races[i-1].Name)
+					}
+				}
+			},
+		},
+		{
+			name: "sort by name descending",
+			filter: &racingpb.ListRacesRequestFilter{
+				SortBy:     proto.String("name"),
+				Descending: proto.Bool(true),
+			},
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				// Verify reverse alphabetical order Z-A
+				for i := 1; i < len(races); i++ {
+					if races[i].Name > races[i-1].Name {
+						t.Errorf("names not in descending order: %q after %q", races[i].Name, races[i-1].Name)
+					}
+				}
+			},
+		},
+		{
+			name: "sort by id ascending",
+			filter: &racingpb.ListRacesRequestFilter{
+				SortBy:     proto.String("id"),
+				Descending: proto.Bool(false),
+			},
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				for i := 1; i < len(races); i++ {
+					if races[i].Id < races[i-1].Id {
+						t.Errorf("ids not in ascending order: %d before %d", races[i].Id, races[i-1].Id)
+					}
+				}
+			},
+		},
+		{
+			name: "sort by meeting_id ascending",
+			filter: &racingpb.ListRacesRequestFilter{
+				SortBy:     proto.String("meeting_id"),
+				Descending: proto.Bool(false),
+			},
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				for i := 1; i < len(races); i++ {
+					if races[i].MeetingId < races[i-1].MeetingId {
+						t.Errorf("meeting_ids not in ascending order: %d before %d",
+							races[i].MeetingId, races[i-1].MeetingId)
+					}
+				}
+			},
+		},
+		{
+			name: "sort by number ascending",
+			filter: &racingpb.ListRacesRequestFilter{
+				SortBy:     proto.String("number"),
+				Descending: proto.Bool(false),
+			},
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				for i := 1; i < len(races); i++ {
+					if races[i].Number < races[i-1].Number {
+						t.Errorf("numbers not in ascending order: %d before %d",
+							races[i].Number, races[i-1].Number)
+					}
+				}
+			},
+		},
+		{
+			name: "invalid sort_by field falls back to default",
+			filter: &racingpb.ListRacesRequestFilter{
+				SortBy:     proto.String("nonexistent_field"),
+				Descending: proto.Bool(false),
+			},
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				// Should fallback to advertised_start_time ASC
+				for i := 1; i < len(races); i++ {
+					prevTime := races[i-1].AdvertisedStartTime.AsTime()
+					currTime := races[i].AdvertisedStartTime.AsTime()
+					if currTime.Before(prevTime) {
+						t.Error("invalid sort_by did not fallback to default order")
+					}
+				}
+			},
+		},
+		{
+			name: "empty string sort_by uses default advertised_start_time",
+			filter: &racingpb.ListRacesRequestFilter{
+				SortBy:     proto.String(""), // Explicitly set to empty string
+				Descending: proto.Bool(false),
+			},
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				// Empty sort_by should use default (advertised_start_time ASC)
+				for i := 1; i < len(races); i++ {
+					prevTime := races[i-1].AdvertisedStartTime.AsTime()
+					currTime := races[i].AdvertisedStartTime.AsTime()
+					if currTime.Before(prevTime) {
+						t.Error("empty sort_by did not use default order")
+					}
+				}
+			},
+		},
+		{
+			name: "sort with visible filter",
+			filter: &racingpb.ListRacesRequestFilter{
+				Visible:    proto.Bool(true),
+				SortBy:     proto.String("advertised_start_time"),
+				Descending: proto.Bool(false),
+			},
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				// Verify all races are visible
+				for _, race := range races {
+					if !race.Visible {
+						t.Errorf("expected only visible races, got race %d with visible=%v",
+							race.Id, race.Visible)
+					}
+				}
+				// Verify ascending order
+				for i := 1; i < len(races); i++ {
+					prevTime := races[i-1].AdvertisedStartTime.AsTime()
+					currTime := races[i].AdvertisedStartTime.AsTime()
+					if currTime.Before(prevTime) {
+						t.Error("visible filtered races not in ascending order")
+					}
+				}
+			},
+		},
+		{
+			name: "sort with all filters combined",
+			filter: &racingpb.ListRacesRequestFilter{
+				MeetingIds: []int64{1, 2},
+				Visible:    proto.Bool(true),
+				SortBy:     proto.String("name"),
+				Descending: proto.Bool(false),
+			},
+			validateOrder: func(t *testing.T, races []*racingpb.Race) {
+				// Verify all filters applied
+				for _, race := range races {
+					if race.MeetingId != 1 && race.MeetingId != 2 {
+						t.Errorf("race %d: expected meeting_id 1 or 2, got %d",
+							race.Id, race.MeetingId)
+					}
+					if !race.Visible {
+						t.Errorf("race %d: expected visible race", race.Id)
+					}
+				}
+				// Verify name sort
+				for i := 1; i < len(races); i++ {
+					if races[i].Name < races[i-1].Name {
+						t.Errorf("names not in ascending order: %q before %q",
+							races[i].Name, races[i-1].Name)
+					}
+				}
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := callListRaces(t, &racingpb.ListRacesRequest{
+				Filter: tc.filter,
+			})
+
+			if len(resp.Races) == 0 {
+				t.Skip("no races in database to validate sorting")
+			}
+
+			if tc.validateOrder != nil {
+				tc.validateOrder(t, resp.Races)
+			}
+		})
+	}
+}
