@@ -274,12 +274,12 @@ Add to the `TestAPI_ListRaces_EdgeCases` test (within the `testCases` array):
 | Step | Action | Files to Modify | Dependencies |
 |------|--------|-----------------|--------------|
 | 1 | ✅ Add `visible` field to proto in racing service | `racing/proto/racing/racing.proto` | None |
-| 2 | [ ] Add `visible` field to proto in API gateway | `api/proto/racing/racing.proto` | None |
-| 3 | [ ] Update repository filter logic | `racing/db/races.go` | Steps 1 & 2 |
-| 4 | [ ] Regenerate protobuf code | Both services | Steps 1 & 2 |
-| 5 | [ ] Add unit tests for visible filter | `racing/tests/races_test.go` | Steps 3 & 4 |
-| 6 | [ ] Add integration tests | `api/tests/races_integration_test.go` | Steps 3 & 4 |
-| 7 | [ ] Run tests and verify | Both services | Steps 5 & 6 |
+| 2 | ✅ Add `visible` field to proto in API gateway | `api/proto/racing/racing.proto` | None |
+| 3 | ✅ Update repository filter logic | `racing/db/races.go` | Steps 1 & 2 |
+| 4 | ✅ Regenerate protobuf code | Both services | Steps 1 & 2 |
+| 5 | ✅ Add unit tests for visible filter | `racing/tests/races_test.go` | Steps 3 & 4 |
+| 6 | ✅ Add integration tests | `api/tests/races_integration_test.go` | Steps 3 & 4 |
+| 7 | ✅ Run tests and verify | Both services | Steps 5 & 6 |
 
 ---
 
@@ -450,11 +450,14 @@ This will:
 ## Status
 
 - [x] Step 1: Proto definitions updated (both services) - using `optional bool`
-- [ ] Step 2: Regenerate protobuf code
-- [ ] Step 3: Update repository filter logic
-- [ ] Step 4: Add unit tests
-- [ ] Step 5: Add integration tests
-- [ ] Step 6: Run all tests and verify
+- [x] Step 2: Regenerate protobuf code
+- [x] Step 3: Update repository filter logic
+- [x] Step 4: Add unit tests
+- [x] Step 5: Add integration tests
+- [x] Step 6: Run all tests and verify
+
+**All tests passing:**
+- `
 
 ---
 
