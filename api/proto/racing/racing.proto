@@ -47,6 +47,15 @@ message ListRacesRequestFilter {
 
 // A race resource.
 message Race {
+  // Status represents the current state of a race.
+  enum Status {
+    // UNSPECIFIED indicates an unknown status.
+    UNSPECIFIED = 0;
+    // OPEN indicates the race has not yet started.
+    OPEN = 1;
+    // CLOSED indicates the race has started or finished.
+    CLOSED = 2;
+  }
   // ID represents a unique identifier for the race.
   int64 id = 1;
   // MeetingID represents a unique identifier for the races meeting.
@@ -59,4 +68,9 @@ message Race {
   bool visible = 5;
   // AdvertisedStartTime is the time the race is advertised to run.
   google.protobuf.Timestamp advertised_start_time = 6;
+  // Status represents whether the race is open or closed for betting.
+  // Computed based on advertised_start_time vs current time:
+  // - OPEN: when current time is strictly before advertised_start_time
+  // - CLOSED: when current time is at or after advertised_start_time
+  Status status = 7;
 }
