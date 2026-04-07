@@ -2,6 +2,7 @@ package db
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -20,6 +21,10 @@ type RacesRepo interface {
 
 	// List will return a list of races.
 	List(filter *racing.ListRacesRequestFilter) ([]*racing.Race, error)
+
+	// Get returns a single race by its ID.
+	// Returns nil, nil if the race is not found.
+	Get(id int64) (*racing.Race, error)
 }
 
 type racesRepo struct {
@@ -161,16 +166,12 @@ func (m *racesRepo) scanRaces(
 		var advertisedStart time.Time
 
 		if err := rows.Scan(&race.Id, &race.MeetingId, &race.Name, &race.Number, &race.Visible, &advertisedStart); err != nil {
-			if err == sql.ErrNoRows {
-				return nil, nil
-			}
-
-			return nil, err
+			return nil, fmt.Errorf("failed to scan race row: %w", err)
 		}
 
 		ts, err := ptypes.TimestampProto(advertisedStart)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to convert timestamp: %w", err)
 		}
 
 		race.AdvertisedStartTime = ts
@@ -182,4 +183,42 @@ func (m *racesRepo) scanRaces(
 	}
 
 	return races, nil
+}
+
+// Get returns a single race by its ID.
+// Returns an error if the race is not found or if a database error occurs.
+func (r *racesRepo) Get(id int64) (*racing.Race, error) {
+	query := getRaceQueries()[racesGet]
+
+	row := r.db.QueryRow(query, id)
+
+	var race racing.Race
+	var advertisedStart time.Time
+
+	err := row.Scan(
+		&race.Id,
+		&race.MeetingId,
+		&race.Name,
+		&race.Number,
+		&race.Visible,
+		&advertisedStart,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("race with id %d not found", id)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan race: %w", err)
+	}
+
+	ts, err := ptypes.TimestampProto(advertisedStart)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert timestamp: %w", err)
+	}
+
+	race.AdvertisedStartTime = ts
+
+	// Compute status based on advertised_start_time vs current time
+	race.Status = computeRaceStatus(advertisedStart)
+
+	return &race, nil
 }

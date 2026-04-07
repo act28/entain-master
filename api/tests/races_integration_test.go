@@ -15,6 +15,7 @@ import (
 	"time"
 
 	racingpb "git.neds.sh/matty/entain/api/proto/racing"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -644,6 +645,130 @@ func TestAPI_ListRaces_Sorting(t *testing.T) {
 
 			if tc.validateOrder != nil {
 				tc.validateOrder(t, resp.Races)
+			}
+		})
+	}
+}
+
+// TestAPI_GetRace_HTTP tests the GetRace HTTP endpoint
+func TestAPI_GetRace_HTTP(t *testing.T) {
+	testCases := []struct {
+		name           string
+		method         string
+		raceID         string
+		expectedStatus int
+		expectRace     bool
+		validateRace   func(t *testing.T, race *racingpb.Race)
+	}{
+		{
+			name:           "GET existing race",
+			method:         http.MethodGet,
+			raceID:         "1",
+			expectedStatus: http.StatusOK,
+			expectRace:     true,
+			validateRace: func(t *testing.T, race *racingpb.Race) {
+				// Validate all required fields are populated
+				if race.Id == 0 {
+					t.Error("expected id to be populated")
+				}
+				if race.MeetingId == 0 {
+					t.Error("expected meeting_id to be populated")
+				}
+				if race.Name == "" {
+					t.Error("expected name to be populated")
+				}
+				if race.Number == 0 {
+					t.Error("expected number to be populated")
+				}
+				// Status should be either OPEN or CLOSED, never UNSPECIFIED
+				if race.Status == racingpb.Race_UNSPECIFIED {
+					t.Error("expected status to be OPEN or CLOSED, got UNSPECIFIED")
+				}
+				if race.AdvertisedStartTime == nil {
+					t.Error("expected advertised_start_time to be populated")
+				}
+			},
+		},
+		{
+			name:           "GET non-existent race",
+			method:         http.MethodGet,
+			raceID:         "9999",
+			expectedStatus: http.StatusNotFound,
+			expectRace:     false,
+			validateRace:   nil,
+		},
+		{
+			name:           "POST not allowed",
+			method:         http.MethodPost,
+			raceID:         "1",
+			expectedStatus: http.StatusNotImplemented, // gRPC gateway returns 501 for unimplemented methods
+			expectRace:     false,
+			validateRace:   nil,
+		},
+		{
+			name:           "invalid race ID - non-numeric",
+			method:         http.MethodGet,
+			raceID:         "invalid",
+			expectedStatus: http.StatusBadRequest,
+			expectRace:     false,
+			validateRace:   nil,
+		},
+		{
+			name:           "invalid race ID - empty",
+			method:         http.MethodGet,
+			raceID:         "",
+			expectedStatus: http.StatusBadRequest, // Empty ID causes parameter parsing error
+			expectRace:     false,
+			validateRace:   nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			endpoint := fmt.Sprintf("%s/v1/races/%s", getAPIEndpoint(), tc.raceID)
+
+			req, err := http.NewRequest(tc.method, endpoint, nil)
+			if err != nil {
+				t.Fatalf("failed to create request: %v", err)
+			}
+
+			client := &http.Client{Timeout: 10 * time.Second}
+			resp, err := client.Do(req)
+			if err != nil {
+				t.Fatalf("failed to send request: %v", err)
+			}
+			defer resp.Body.Close()
+
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatalf("failed to read response body: %v", err)
+			}
+
+			if resp.StatusCode != tc.expectedStatus {
+				t.Errorf("expected status %d, got %d. Body: %s", tc.expectedStatus, resp.StatusCode, string(body))
+				return
+			}
+
+			// Skip response validation for error cases
+			if resp.StatusCode != http.StatusOK {
+				return
+			}
+
+			// Validate response body for successful requests
+			var result racingpb.GetRaceResponse
+			if err := protojson.Unmarshal(body, &result); err != nil {
+				t.Fatalf("failed to unmarshal response: %v", err)
+			}
+
+			if tc.expectRace && result.Race == nil {
+				t.Fatal("expected race in response, got nil")
+			}
+			if !tc.expectRace && result.Race != nil {
+				t.Fatalf("expected nil race, got: %v", result.Race)
+			}
+
+			if tc.validateRace != nil && result.Race != nil {
+				tc.validateRace(t, result.Race)
 			}
 		})
 	}

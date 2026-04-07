@@ -14,6 +14,11 @@ service Racing {
       body: "*"
     };
   }
+
+  // GetRace returns a single race by its ID.
+  rpc GetRace(GetRaceRequest) returns (GetRaceResponse) {
+    option (google.api.http) = {get: "/v1/races/{id}"};
+  }
 }
 
 /* Requests/Responses */
@@ -73,4 +78,18 @@ message Race {
   // - OPEN: when current time is strictly before advertised_start_time
   // - CLOSED: when current time is at or after advertised_start_time
   Status status = 7;
+}
+
+/* GetRace Request/Response */
+
+// Request for GetRace call.
+message GetRaceRequest {
+  // The unique ID of the race to retrieve.
+  int64 id = 1;
+}
+
+// Response to GetRace call.
+message GetRaceResponse {
+  // The requested race resource.
+  Race race = 1;
 }

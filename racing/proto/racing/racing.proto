@@ -8,6 +8,9 @@ option go_package = "/racing";
 service Racing {
   // ListRaces will return a collection of all races.
   rpc ListRaces(ListRacesRequest) returns (ListRacesResponse) {}
+
+  // GetRace returns a single race by its ID.
+  rpc GetRace(GetRaceRequest) returns (GetRaceResponse) {}
 }
 
 /* Requests/Responses */
@@ -66,4 +69,18 @@ message Race {
   // - OPEN: when current time is strictly before advertised_start_time
   // - CLOSED: when current time is at or after advertised_start_time
   Status status = 7;
+}
+
+/* GetRace Request/Response */
+
+// Request for GetRace call.
+message GetRaceRequest {
+  // The unique ID of the race to retrieve.
+  int64 id = 1;
+}
+
+// Response to GetRace call.
+message GetRaceResponse {
+  // The requested race resource.
+  Race race = 1;
 }
