@@ -15,6 +15,7 @@ import (
 	"time"
 
 	racingpb "git.neds.sh/matty/entain/api/proto/racing"
+	"google.golang.org/protobuf/proto"
 )
 
 // TestAPI_ListRaces_HTTPErrorHandling tests HTTP-level error scenarios.
@@ -211,6 +212,50 @@ func TestAPI_ListRaces_EdgeCases(t *testing.T) {
 			expectedCount: -1,
 			validateRaces: func(t *testing.T, races []*racingpb.Race) {
 				assertRacesFromMeetings(t, races, []int64{1})
+			},
+		},
+		{
+			name: "visible filter true",
+			filter: &racingpb.ListRacesRequestFilter{
+				Visible: proto.Bool(true),
+			},
+			expectedCount: -1,
+			validateRaces: func(t *testing.T, races []*racingpb.Race) {
+				for _, race := range races {
+					if !race.Visible {
+						t.Errorf("expected visible race, got race %d with visible=%v", race.Id, race.Visible)
+					}
+				}
+			},
+		},
+		{
+			name: "visible filter false",
+			filter: &racingpb.ListRacesRequestFilter{
+				Visible: proto.Bool(false),
+			},
+			expectedCount: -1,
+			validateRaces: func(t *testing.T, races []*racingpb.Race) {
+				for _, race := range races {
+					if race.Visible {
+						t.Errorf("expected invisible race, got race %d with visible=%v", race.Id, race.Visible)
+					}
+				}
+			},
+		},
+		{
+			name: "visible filter with meeting ids",
+			filter: &racingpb.ListRacesRequestFilter{
+				MeetingIds: []int64{1},
+				Visible:    proto.Bool(true),
+			},
+			expectedCount: -1,
+			validateRaces: func(t *testing.T, races []*racingpb.Race) {
+				assertRacesFromMeetings(t, races, []int64{1})
+				for _, race := range races {
+					if !race.Visible {
+						t.Errorf("expected visible race, got race %d with visible=%v", race.Id, race.Visible)
+					}
+				}
 			},
 		},
 	}
