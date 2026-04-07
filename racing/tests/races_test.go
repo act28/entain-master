@@ -14,6 +14,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	_ "github.com/mattn/go-sqlite3"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -800,6 +802,143 @@ func TestListRaces_Sorting(t *testing.T) {
 
 			if tc.validateOrder != nil {
 				tc.validateOrder(t, response.Races)
+			}
+		})
+	}
+}
+
+// TestGetRace_Service tests the GetRace method of the service layer
+func TestGetRace_Service(t *testing.T) {
+	testCases := []struct {
+		name            string
+		raceID          int64
+		seedData        []testRace
+		expectRace      bool
+		expectError     bool
+		expectErrorCode codes.Code // gRPC error code expected
+	}{
+		{
+			name: "get existing race",
+			seedData: []testRace{
+				{ID: 1, MeetingID: 1, Name: "Race 1", Number: 1, Visible: true, AdvertisedStartTime: time.Now().Add(1 * time.Hour)},
+			},
+			raceID:          1,
+			expectRace:      true,
+			expectError:     false,
+			expectErrorCode: codes.OK,
+		},
+		{
+			name:            "get non-existent race",
+			seedData:        []testRace{},
+			raceID:          9999,
+			expectRace:      false,
+			expectError:     true,
+			expectErrorCode: codes.NotFound,
+		},
+		{
+			name:            "get race with invalid id 0",
+			seedData:        []testRace{},
+			raceID:          0,
+			expectRace:      false,
+			expectError:     true,
+			expectErrorCode: codes.InvalidArgument,
+		},
+		{
+			name:            "get race with negative id",
+			seedData:        []testRace{},
+			raceID:          -1,
+			expectRace:      false,
+			expectError:     true,
+			expectErrorCode: codes.InvalidArgument,
+		},
+		{
+			name: "get race verifies all fields",
+			seedData: []testRace{
+				{ID: 3, MeetingID: 2, Name: "Test Race", Number: 5, Visible: false, AdvertisedStartTime: time.Now().Add(-2 * time.Hour)},
+			},
+			raceID:          3,
+			expectRace:      true,
+			expectError:     false,
+			expectErrorCode: codes.OK,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			db, cleanup := setupTestDB(t)
+			t.Cleanup(cleanup)
+
+			if len(tc.seedData) > 0 {
+				seedTestData(t, db, tc.seedData)
+			}
+
+			repo := racingdb.NewRacesRepo(db)
+			racingService := service.NewRacingService(repo)
+
+			request := &racingpb.GetRaceRequest{
+				Id: tc.raceID,
+			}
+
+			response, err := racingService.GetRace(context.Background(), request)
+			switch {
+			// Case 1: Expected error but got nil
+			case tc.expectError && err == nil:
+				t.Fatal("expected error, got nil")
+			// Case 2: Expected error but wrong code
+			case tc.expectError && status.Code(err) != tc.expectErrorCode:
+				t.Fatalf("expected error code %v, got %v", tc.expectErrorCode, status.Code(err))
+			// Case 3: Expected error with correct code - return early
+			case tc.expectError:
+				return
+			// Case 4: Unexpected error when none expected
+			case err != nil:
+				t.Fatalf("GetRace failed unexpectedly: %v", err)
+			}
+
+			if tc.expectRace && response.Race == nil {
+				t.Fatal("expected race in response, got nil")
+			}
+			if !tc.expectRace && response.Race != nil {
+				t.Fatalf("expected nil race, got: %v", response.Race)
+			}
+
+			// Validate fields when race is expected
+			// Skip validation if no race expected or race is nil
+			if !tc.expectRace || response.Race == nil {
+				return
+			}
+
+			// Validate ID matches
+			if response.Race.Id != tc.raceID {
+				t.Errorf("expected race id %d, got %d", tc.raceID, response.Race.Id)
+			}
+
+			// Find matching seed data for complete validation
+			var expectedRace testRace
+			for _, r := range tc.seedData {
+				if r.ID == tc.raceID {
+					expectedRace = r
+					break
+				}
+			}
+
+			// Skip field validation if no matching seed data found
+			if expectedRace.ID == 0 {
+				t.Fatalf("test setup error: no seed data found for race ID %d", tc.raceID)
+			}
+
+			// Validate all fields match seed data
+			if response.Race.MeetingId != expectedRace.MeetingID {
+				t.Errorf("expected meeting_id %d, got %d", expectedRace.MeetingID, response.Race.MeetingId)
+			}
+			if response.Race.Name != expectedRace.Name {
+				t.Errorf("expected name %q, got %q", expectedRace.Name, response.Race.Name)
+			}
+			if response.Race.Number != expectedRace.Number {
+				t.Errorf("expected number %d, got %d", expectedRace.Number, response.Race.Number)
+			}
+			if response.Race.Visible != expectedRace.Visible {
+				t.Errorf("expected visible %v, got %v", expectedRace.Visible, response.Race.Visible)
 			}
 		})
 	}
