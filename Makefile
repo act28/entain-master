@@ -64,7 +64,7 @@ lint:
 	@echo "✓ Go files are formatted"
 	@echo "Running golangci-lint..."
 	@if command -v golangci-lint >/dev/null 2>&1; then \
-		# Skip linting in racing due to legacy issues for now
+		# Skip linting in racing due to legacy issues for now \
 		# (cd racing && golangci-lint run ./... --config=../.golangci.yml --timeout=5m); \
 		(cd sports && golangci-lint run ./... --config=../.golangci.yml --timeout=5m); \
 		(cd api && golangci-lint run ./... --config=../.golangci.yml --timeout=5m); \
