@@ -258,22 +258,22 @@ func TestEventsRepo_ListEvents_StatusValidation(t *testing.T) {
 	// Test events with specific times for status validation.
 	testEvents := []testEvent{
 		{ID: 1, SportID: 1, Name: "Future Event", Visible: true, AdvertisedStartTime: now.Add(2 * time.Hour)},
-		{ID: 2, SportID: 1, Name: "Past Event", Visible: true, AdvertisedStartTime: now.Add(-2 * time.Hour)},
+		{ID: 2, SportID: 2, Name: "Past Event", Visible: true, AdvertisedStartTime: now.Add(-2 * time.Hour)},
 	}
 
 	tests := []struct {
 		name       string
-		eventID    int64
+		sportID    int64
 		wantStatus sports.Event_Status
 	}{
 		{
 			name:       "future event has OPEN status",
-			eventID:    1,
+			sportID:    1,
 			wantStatus: sports.Event_OPEN,
 		},
 		{
 			name:       "past event has CLOSED status",
-			eventID:    2,
+			sportID:    2,
 			wantStatus: sports.Event_CLOSED,
 		},
 	}
@@ -295,7 +295,7 @@ func TestEventsRepo_ListEvents_StatusValidation(t *testing.T) {
 
 			// Call List to get events and check status.
 			filter := &sports.ListEventsRequestFilter{
-				SportIds: []int64{tt.eventID},
+				SportIds: []int64{tt.sportID},
 			}
 			got, err := repo.List(context.Background(), filter)
 			if err != nil {
@@ -304,7 +304,7 @@ func TestEventsRepo_ListEvents_StatusValidation(t *testing.T) {
 			}
 
 			if len(got) == 0 {
-				t.Errorf("List() expected event with id %d but got none", tt.eventID)
+				t.Errorf("List() expected event with id %d but got none", tt.sportID)
 				return
 			}
 
