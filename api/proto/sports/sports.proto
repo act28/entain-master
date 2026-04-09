@@ -1,0 +1,79 @@
+syntax = "proto3";
+package sports;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "git.neds.sh/matty/entain/sports/proto/sports;sports";
+
+service Sports {
+  // ListEvents returns a list of all sports events.
+  rpc ListEvents(ListEventsRequest) returns (ListEventsResponse) {
+    option (google.api.http) = {
+      post: "/v1/sports/events"
+      body: "*"
+    };
+  }
+}
+
+/* Requests/Responses */
+
+// Request for ListEvents call.
+message ListEventsRequest {
+  // ListEventsRequestFilter specifies a filter for listing events.
+  ListEventsRequestFilter filter = 1;
+}
+
+// Response to ListEvents call.
+message ListEventsResponse {
+  // Events is a list of sporting event resources.
+  repeated Event events = 1;
+}
+
+// Filter for listing events.
+message ListEventsRequestFilter {
+  // SportIDs is a list of unique identifiers for the sport types.
+  repeated int64 sport_ids = 1;
+  // Optional filter for visible events. If not set, returns both visible and invisible events.
+  optional bool visible = 2;
+  // Optional field to specify which field to sort by.
+  // Supported values: "advertised_start_time", "name", "id", "sport_id"
+  // If not set, defaults to "advertised_start_time".
+  optional string sort_by = 3;
+  // Optional field to specify sort direction.
+  // If true, sorts in descending order (latest first).
+  // If false or not set, sorts in ascending order (earliest first).
+  optional bool descending = 4;
+}
+
+/* Resources */
+
+// An event resource.
+message Event {
+  // Status represents the current state of an event.
+  enum Status {
+    // UNSPECIFIED indicates an unknown status.
+    UNSPECIFIED = 0;
+    // OPEN indicates the event has not yet started.
+    OPEN = 1;
+    // CLOSED indicates the event has started or finished.
+    CLOSED = 2;
+  }
+  // ID represents a unique identifier for the event.
+  int64 id = 1;
+  // SportID represents a unique identifier for the sport type.
+  int64 sport_id = 2;
+  // SportTypeName is the name of the sport (e.g., "Football", "Basketball").
+  string sport_type_name = 3;
+  // Name is the official name given to the event.
+  string name = 4;
+  // Visible represents whether or not the event is visible.
+  bool visible = 5;
+  // AdvertisedStartTime is the time the event is advertised to start.
+  google.protobuf.Timestamp advertised_start_time = 6;
+  // Status represents whether the event is open or closed.
+  // Computed based on advertised_start_time vs current time:
+  // - OPEN: when current time is strictly before advertised_start_time
+  // - CLOSED: when current time is at or after advertised_start_time
+  Status status = 7;
+}
